@@ -1,0 +1,547 @@
+{
+  "name": "Automated Multi-Channel Social & Video Content Repurposer",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_DRIVE_FOLDER_ID",
+          "mode": "list",
+          "cachedResultName": "__mocks__",
+          "cachedResultUrl": "https://example.com/placeholder"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "c87cb218-047b-4442-ba12-08227d61f063",
+      "name": "Google Drive Trigger: New Episode Upload",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1856,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "m1",
+              "name": "source_file_id",
+              "type": "string",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "id": "m2",
+              "name": "episode_title",
+              "type": "string",
+              "value": "={{ $json.name.replace(/\\.[^/.]+$/, '') }}"
+            },
+            {
+              "id": "m3",
+              "name": "source_url",
+              "type": "string",
+              "value": "={{ $json.webViewLink }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3989d291-ba65-40e7-9ea0-fd2260efd62b",
+      "name": "Episode Metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1632,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.source_file_id }}"
+        },
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "id": "7e3972ef-4e99-4ca6-a9ce-7976a6a2ab04",
+      "name": "Google Drive: Download Episode File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -1408,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "models/gemini-2.5-flash"
+        },
+        "text": "Transcribe this audio/video in full. Then structure your entire response as ONLY valid JSON (no markdown, no commentary) matching exactly this schema: {\"transcript\": string (the full transcript broken into paragraphs, each paragraph prefixed with an approximate timestamp in [MM:SS] format), \"thesis_points\": array of 3-6 strings (the core arguments/ideas of the episode), \"notable_quotes\": array of objects {\"timestamp\": \"[MM:SS]\", \"quote\": string} for the 5-8 most quotable, punchy moments suitable for short-form video clips}.",
+        "inputType": "binary",
+        "simplify": false,
+        "options": {
+          "maxOutputTokens": 8192
+        }
+      },
+      "id": "cd0c4d6c-30e1-4e15-8bcc-f9531716aa9f",
+      "name": "Gemini: Transcribe & Extract Thesis",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -1184,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const t = $input.item.json;\nlet raw = '';\ntry {\n  raw = t.candidates[0].content.parts[0].text;\n} catch (e) {\n  raw = t.text || '';\n}\nconst cleaned = raw.replace(/```json|```/g, '').trim();\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = { transcript: raw, thesis_points: [], notable_quotes: [] };\n}\n\nreturn {\n  json: {\n    source_file_id: t.source_file_id,\n    episode_title: t.episode_title,\n    source_url: t.source_url,\n    transcript: parsed.transcript || '',\n    thesis_points: parsed.thesis_points || [],\n    notable_quotes: parsed.notable_quotes || []\n  }\n};"
+      },
+      "id": "3d16ec20-3a49-4e74-ab45-5a3a62131a66",
+      "name": "Code: Parse Transcript & Thesis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a ghostwriter for a founder's LinkedIn presence. Using the thesis points and transcript below, write a LinkedIn essay repurposing this episode.\n\nConstraints: 1300-2600 characters total, a strong 1-2 line hook as the very first line, short punchy paragraphs (1-3 sentences) separated by blank lines, no hashtags, at most 1-2 emoji, end with a single thought-provoking question to drive comments. Respond with ONLY the essay text — no preamble, no markdown, no commentary.\n\nThesis points:\n{{ $json.thesis_points.map(p => '- ' + p).join('\\n') }}\n\nFull transcript:\n{{ $json.transcript }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "builtInTools": {},
+        "options": {
+          "maxOutputTokens": 2048
+        }
+      },
+      "id": "7af6f0cb-eeb7-4048-87b7-540fda1e8878",
+      "name": "Gemini: Draft LinkedIn Essay",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -736,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const t = $input.item.json;\nlet raw = '';\ntry {\n  raw = t.candidates[0].content.parts[0].text;\n} catch (e) {\n  raw = t.text || '';\n}\n\nreturn {\n  json: {\n    ...t,\n    linkedin_essay: raw.trim()\n  }\n};"
+      },
+      "id": "56c6acbf-eec8-44b2-87cf-57200366b409",
+      "name": "Code: Parse LinkedIn Essay",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "c07703cf-6cdf-4c6f-bc01-324d451d8c22",
+      "name": "Merge Content Drafts",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -160,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a social ghostwriter. Using the thesis points and transcript below, write a step-by-step breakdown thread for X/Twitter repurposing this episode.\n\nConstraints: 6-10 posts, each post 220-275 characters, post 1 is a strong hook, each subsequent post unpacks ONE step/idea with a number prefix like '2/', the last post is a soft call-to-action recapping the core thesis. Respond with ONLY valid JSON (no markdown, no commentary): an array of strings, one per post, e.g. [\"1/ ...\", \"2/ ...\"].\n\nThesis points:\n{{ $json.thesis_points.map(p => '- ' + p).join('\\n') }}\n\nFull transcript:\n{{ $json.transcript }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "builtInTools": {},
+        "options": {
+          "maxOutputTokens": 2048
+        }
+      },
+      "id": "c6d8db49-7d8b-4476-b530-ddf0b3c060a1",
+      "name": "Gemini: Draft Step-by-Step Thread",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -736,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const t = $input.item.json;\nlet raw = '';\ntry {\n  raw = t.candidates[0].content.parts[0].text;\n} catch (e) {\n  raw = t.text || '';\n}\nconst cleaned = raw.replace(/```json|```/g, '').trim();\nlet posts;\ntry {\n  posts = JSON.parse(cleaned);\n  if (!Array.isArray(posts)) posts = [String(posts)];\n} catch (e) {\n  posts = raw.split(/\\n+/).filter(Boolean);\n}\n\nreturn {\n  json: {\n    ...t,\n    twitter_thread: posts.join('\\n\\n')\n  }\n};"
+      },
+      "id": "d13f6a57-b868-46e6-b219-c2c687b8767e",
+      "name": "Code: Parse Thread",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const left = $input.item.json;\nconst thread = $('Code: Parse Thread').item.json;\n\nconst quotes = (left.notable_quotes || []).map(q => `${q.timestamp} \"${q.quote}\"`).join('\\n');\n\nreturn {\n  json: {\n    episode_title: left.episode_title,\n    source_url: left.source_url,\n    transcript: left.transcript,\n    thesis_points: (left.thesis_points || []).map(p => `- ${p}`).join('\\n'),\n    linkedin_essay: left.linkedin_essay,\n    twitter_thread: thread.twitter_thread,\n    quote_timestamps: quotes\n  }\n};"
+      },
+      "id": "375e9447-5582-402e-8f8d-d4134b82eba6",
+      "name": "Code: Format Quote Timestamps & Assemble Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list",
+          "cachedResultName": "Example Workspace",
+          "cachedResultUrl": "https://example.com/placeholder"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "Episodes",
+          "cachedResultUrl": "https://example.com/placeholder"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Episode Title": "={{ $json.episode_title }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Episode Title",
+              "displayName": "Episode Title",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "LinkedIn Essay",
+              "displayName": "LinkedIn Essay",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Step-by-Step Thread",
+              "displayName": "Step-by-Step Thread",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Quote Timestamps",
+              "displayName": "Quote Timestamps",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Thesis",
+              "displayName": "Thesis",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "35e4c787-1991-4104-af65-329b596b5bd9",
+      "name": "Airtable: Create Content Project Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        288,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1. INTAKE\nWatches a Google Drive folder for new episode uploads (video or audio) and downloads the file for processing.",
+        "height": 448,
+        "width": 656,
+        "color": 6
+      },
+      "id": "0a3939b8-396c-48fb-8452-0381fb0cc891",
+      "name": "Sticky Note b92e1675",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1904,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. TRANSCRIPTION + THESIS EXTRACTION\nA single Gemini call transcribes the full episode (timestamped by paragraph), pulls out 3-6 core thesis points, and flags 5-8 quotable moments — all in one structured JSON response.",
+        "height": 464,
+        "width": 736,
+        "color": 3
+      },
+      "id": "c99fa09a-291c-449a-bb78-96d9e8d12e25",
+      "name": "Sticky Note 3392b46d",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. PLATFORM-SPECIFIC CONTENT GENERATION\nTwo parallel, platform-tailored prompts: a LinkedIn essay (character range, hook, punchy paragraphs, closing question) and a step-by-step X/Twitter thread (per-post character limits, numbered steps). Each format gets its own constraints instead of one generic prompt.",
+        "height": 544,
+        "width": 448,
+        "color": 5
+      },
+      "id": "9e9d3eee-5b4a-4e14-865a-2bc90001d433",
+      "name": "Sticky Note 5293fc31",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4. OUTPUT TO AIRTABLE DASHBOARD\nMerges both drafts back together, formats the notable-quote timestamps for short-form video editors, and creates one centralized project record with everything ready for one-click publishing review.",
+        "height": 384,
+        "width": 432,
+        "color": 4
+      },
+      "id": "f9802004-746a-424a-9d92-d5fb8cb1cb2c",
+      "name": "Sticky Note dc6ae698",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        64
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive Trigger: New Episode Upload": {
+      "main": [
+        [
+          {
+            "node": "Episode Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Episode Metadata": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Download Episode File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: Download Episode File": {
+      "main": [
+        [
+          {
+            "node": "Gemini: Transcribe & Extract Thesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Transcribe & Extract Thesis": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Transcript & Thesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse Transcript & Thesis": {
+      "main": [
+        [
+          {
+            "node": "Gemini: Draft LinkedIn Essay",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gemini: Draft Step-by-Step Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Draft LinkedIn Essay": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse LinkedIn Essay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse LinkedIn Essay": {
+      "main": [
+        [
+          {
+            "node": "Merge Content Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Content Drafts": {
+      "main": [
+        [
+          {
+            "node": "Code: Format Quote Timestamps & Assemble Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Draft Step-by-Step Thread": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse Thread": {
+      "main": [
+        [
+          {
+            "node": "Merge Content Drafts",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code: Format Quote Timestamps & Assemble Record": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Create Content Project Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "150f4656-0750-48e4-871c-1ee4bc151b18",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "08a0676d4b0e271dfa212b6f24b87f277ddcb0348daa828cdb80e80908e94eb1"
+  },
+  "nodeGroups": [],
+  "id": "qbEA7fZXrUqJkFyo",
+  "tags": []
+}
