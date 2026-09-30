@@ -1,0 +1,753 @@
+{
+  "name": "Competitor Price & Inventory Tracking Sentinel",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 1. WATCHLIST-DRIVEN SCAN\nEvery 2 hours, pulls the competitor watchlist (competitor, product URL, our matching SKU, and the CSS selectors for that site's price/stock/shipping) and loops through it one row at a time.",
+        "height": 480,
+        "width": 560,
+        "color": 6
+      },
+      "id": "e745030d-ba19-4ef9-9f6d-078395d02b90",
+      "name": "Note: ## 1. WATCHLIST-DRIV",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1728,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. SCRAPE + NORMALIZE\nFetches the live page, extracts price/stock/shipping text with CSS selectors, and a Code node cleans that into real numbers and a clean in-stock boolean.",
+        "height": 480,
+        "width": 480,
+        "color": 3
+      },
+      "id": "99b65b78-7b65-406b-a9d8-0a30ee56c75d",
+      "name": "Note: ## 2. SCRAPE + NORMA",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. VARIANCE LOGIC\nPulls this SKU's last logged snapshot and compares: price drop ≥10%, or a switch from in-stock to out-of-stock, both count as a market opportunity. Every scrape is logged either way — this is what makes the history queryable for the digest.",
+        "height": 416,
+        "width": 1632,
+        "color": 5
+      },
+      "id": "9bb47cc5-0fc5-43c0-bcab-c9ccbaf71f58",
+      "name": "Note: ## 3. VARIANCE LOGIC",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4. INSTANT ALERT\nA flagged opportunity fires a Slack alert immediately, not batched — this is the 'stock just ran out' signal a client wants in minutes, not next morning.",
+        "height": 280,
+        "width": 420,
+        "color": 2
+      },
+      "id": "cb2db294-92f1-4cb1-bdc0-a9c1413c9df1",
+      "name": "Note: ## 4. INSTANT ALERT\n",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5. MORNING DIGEST (separate trigger)\nA second, independent schedule (8am daily) queries everything flagged in the last 24h from the same history table and sends one rollup message — for clients who want a daily summary instead of a stream of pings.",
+        "height": 400,
+        "width": 700,
+        "color": 7
+      },
+      "id": "8d7997c1-e091-49a5-b83e-f2c07973ba0e",
+      "name": "Note: ## 5. MORNING DIGEST",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1728,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ERROR HANDLING\nAny scrape/API failure fires this Error Trigger and pings ops — a broken competitor selector never fails silently.",
+        "height": 308,
+        "width": 480,
+        "color": 2
+      },
+      "id": "be8d3fe5-d2fe-4b70-9f30-f6613b175293",
+      "name": "Note: ## ERROR HANDLING\nAn",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1728,
+        1296
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "a76a065d-d00a-4dc2-aef8-e3f6832d96ee",
+      "name": "Trigger: Every 2 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1696,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "mode": "list",
+          "value": "YOUR_AIRTABLE_BASE_ID"
+        },
+        "table": {
+          "mode": "list",
+          "value": "Watchlist"
+        },
+        "filterByFormula": "={Active} = 1",
+        "options": {}
+      },
+      "id": "79fd2551-8924-4b8a-bb3e-f45ed51799ae",
+      "name": "Airtable: Get Active Watchlist",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "d6dc71d7-778c-4d8e-a8c2-08412a42963e",
+      "name": "Loop Over Watchlist",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1312,
+        368
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "564354f2-13b1-4330-b24b-b1508d975c60",
+      "name": "Scan Complete",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.product_url }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "78c67174-4bbf-4476-b20c-7e3e9473dde4",
+      "name": "HTTP Request: Fetch Competitor Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1040,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "price_text",
+              "cssSelector": "={{ $('Loop Over Watchlist').item.json.price_selector }}"
+            },
+            {
+              "key": "stock_text",
+              "cssSelector": "={{ $('Loop Over Watchlist').item.json.stock_selector }}"
+            },
+            {
+              "key": "shipping_text",
+              "cssSelector": "={{ $('Loop Over Watchlist').item.json.shipping_selector }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ce337cf1-463f-4283-b396-a036893b706c",
+      "name": "HTML: Extract Price, Stock & Shipping",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -800,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const watch = $('Loop Over Watchlist').item.json;\nconst scraped = $input.item.json;\n\nconst priceMatch = String(scraped.price_text || '').replace(/[^0-9.]/g, '');\nconst price = priceMatch ? parseFloat(priceMatch) : null;\n\nconst stockText = String(scraped.stock_text || '').toLowerCase();\nconst inStock = !(stockText.includes('out of stock') || stockText.includes('sold out') || stockText.includes('unavailable'));\n\nreturn [{\n  json: {\n    competitor: watch.competitor,\n    our_sku: watch.our_sku,\n    product_url: watch.product_url,\n    price: price,\n    in_stock: inStock,\n    shipping_terms: (scraped.shipping_text || '').trim(),\n    scraped_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "a0383ba8-1bff-4f34-b8f9-cfbcca43513a",
+      "name": "Code: Normalize Scraped Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "mode": "list",
+          "value": "YOUR_AIRTABLE_BASE_ID"
+        },
+        "table": {
+          "mode": "list",
+          "value": "Price History"
+        },
+        "filterByFormula": "=AND({SKU} = '{{ $json.our_sku }}', {Competitor} = '{{ $json.competitor }}')",
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "Scraped At",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "id": "dd9b7dfa-9024-43ca-a40f-cf2a2fa3c4cb",
+      "name": "Airtable: Get Previous Snapshot",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const current = $('Code: Normalize Scraped Data').item.json;\nconst previousItems = $input.all();\nconst previous = previousItems.length ? previousItems[0].json : null;\n\nlet priceDeltaPct = null;\nlet wentOutOfStock = false;\nlet reason = '';\n\nif (previous && previous.Price != null && current.price != null && previous.Price > 0) {\n  priceDeltaPct = ((current.price - previous.Price) / previous.Price) * 100;\n}\n\nif (previous && previous['In Stock'] === true && current.in_stock === false) {\n  wentOutOfStock = true;\n}\n\nconst priceDropSignificant = priceDeltaPct !== null && priceDeltaPct <= -10;\n\nif (priceDropSignificant) reason = `Price dropped ${Math.abs(priceDeltaPct).toFixed(1)}% (was ${previous.Price}, now ${current.price})`;\nelse if (wentOutOfStock) reason = 'Went from In Stock to Out of Stock';\n\nreturn [{\n  json: {\n    ...current,\n    previous_price: previous ? previous.Price : null,\n    price_delta_pct: priceDeltaPct,\n    is_opportunity: priceDropSignificant || wentOutOfStock,\n    opportunity_reason: reason\n  }\n}];"
+      },
+      "id": "7218b2d1-ca0e-4316-bf01-ee8c95322010",
+      "name": "Code: Compute Variance & Flag Opportunity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "mode": "list",
+          "value": "YOUR_AIRTABLE_BASE_ID"
+        },
+        "table": {
+          "mode": "list",
+          "value": "Price History"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "SKU": "={{ $json.our_sku }}",
+            "Competitor": "={{ $json.competitor }}",
+            "Product URL": "={{ $json.product_url }}",
+            "Price": "={{ $json.price }}",
+            "In Stock": "={{ $json.in_stock }}",
+            "Shipping Terms": "={{ $json.shipping_terms }}",
+            "Scraped At": "={{ $json.scraped_at }}",
+            "Price Delta %": "={{ $json.price_delta_pct }}",
+            "Is Opportunity": "={{ $json.is_opportunity }}",
+            "Opportunity Reason": "={{ $json.opportunity_reason }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a4187f18-c633-46b9-9a90-ae5ff4800623",
+      "name": "Airtable: Log Snapshot to Price History",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        80,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "73bbd148-14f8-44fd-81ac-586e6ef22eb7",
+              "leftValue": "={{ $json.is_opportunity }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9a707ef3-666d-4bde-a974-f103599eef17",
+      "name": "IF: Is Opportunity?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        368,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "mode": "name",
+          "value": "#price-intel"
+        },
+        "text": "=🚨 *{{ $json.competitor }}* — {{ $json.opportunity_reason }}\nSKU: {{ $json.our_sku }} | Current price: {{ $json.price }}\nLink: {{ $json.product_url }}",
+        "otherOptions": {}
+      },
+      "id": "ad4e4c5b-4a98-4c23-928a-b5770cbbbc8d",
+      "name": "Slack: Instant Opportunity Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        176,
+        -80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "214aab33-7f99-4856-9900-1f53fdb243e5",
+      "name": "No Significant Change",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        672,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "79bc49dc-c306-448a-bbd8-72d2b1069cbd",
+      "name": "Trigger: Daily 8AM Digest",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1664,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "mode": "list",
+          "value": "YOUR_AIRTABLE_BASE_ID"
+        },
+        "table": {
+          "mode": "list",
+          "value": "Price History"
+        },
+        "filterByFormula": "=AND({Is Opportunity} = 1, IS_AFTER({Scraped At}, DATEADD(NOW(), -24, 'hours')))",
+        "options": {}
+      },
+      "id": "b6cdf78f-be6f-4e41-bff6-5d9eff877ba2",
+      "name": "Airtable: Get Last 24h Opportunities",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -1456,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nif (items.length === 0) {\n  return [{ json: { has_opportunities: false, digest_text: '' } }];\n}\n\nconst lines = items.map(r => `• *${r.Competitor}* — ${r['Opportunity Reason']} (SKU ${r.SKU}) — ${r['Product URL']}`);\nconst digestText = `📊 *Competitor Watch — Morning Digest*\\n${items.length} opportunity${items.length === 1 ? '' : 'ies'} in the last 24h:\\n\\n${lines.join('\\n')}`;\n\nreturn [{ json: { has_opportunities: true, digest_text: digestText } }];"
+      },
+      "id": "283ec07e-4b7d-49e3-afc8-4cd80dc09bdb",
+      "name": "Code: Format Digest Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "f40a1d7d-9924-4e59-abee-f0d7aa6fbd94",
+              "leftValue": "={{ $json.has_opportunities }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "16133a06-da9f-457c-a829-039ad06ebe8e",
+      "name": "IF: Any Opportunities Today?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -944,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "mode": "name",
+          "value": "#price-intel-digest"
+        },
+        "text": "={{ $json.digest_text }}",
+        "otherOptions": {}
+      },
+      "id": "289186d1-f54a-42be-8f40-a32bf6ec293d",
+      "name": "Slack: Send Morning Digest",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        -704,
+        816
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0e3a1560-6731-4a92-b960-516c1cff6ad0",
+      "name": "Skip: No Opportunities to Report",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -704,
+        1104
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "83cadfb7-08ee-4543-badf-917a4de84810",
+      "name": "On Workflow Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1696,
+        1440
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "mode": "name",
+          "value": "#ops-alerts"
+        },
+        "text": "=🚨 Price & Inventory Sentinel workflow failed.\nNode: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}",
+        "otherOptions": {}
+      },
+      "id": "17130f50-1594-444b-8dd3-fd89a2b065b5",
+      "name": "Slack: Alert Ops Channel",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        -1440,
+        1440
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger: Every 2 Hours": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Get Active Watchlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Get Active Watchlist": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Watchlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Watchlist": {
+      "main": [
+        [
+          {
+            "node": "Scan Complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request: Fetch Competitor Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request: Fetch Competitor Page": {
+      "main": [
+        [
+          {
+            "node": "HTML: Extract Price, Stock & Shipping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML: Extract Price, Stock & Shipping": {
+      "main": [
+        [
+          {
+            "node": "Code: Normalize Scraped Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Normalize Scraped Data": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Get Previous Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Get Previous Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Code: Compute Variance & Flag Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Compute Variance & Flag Opportunity": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Log Snapshot to Price History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Log Snapshot to Price History": {
+      "main": [
+        [
+          {
+            "node": "IF: Is Opportunity?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Is Opportunity?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Instant Opportunity Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Significant Change",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Instant Opportunity Alert": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Watchlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Significant Change": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Watchlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger: Daily 8AM Digest": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Get Last 24h Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Get Last 24h Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Code: Format Digest Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Format Digest Message": {
+      "main": [
+        [
+          {
+            "node": "IF: Any Opportunities Today?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Any Opportunities Today?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Send Morning Digest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip: No Opportunities to Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On Workflow Error": {
+      "main": [
+        [
+          {
+            "node": "Slack: Alert Ops Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "fc185445-0608-4730-a955-bb353e05bcbc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "08a0676d4b0e271dfa212b6f24b87f277ddcb0348daa828cdb80e80908e94eb1"
+  },
+  "nodeGroups": [],
+  "id": "DmNgYa1jsPhIR2lE",
+  "tags": []
+}
