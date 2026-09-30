@@ -1,0 +1,759 @@
+{
+  "name": "Automated Weekly Executive Business Health Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 1. DATA AGGREGATION\nEvery Monday at 6am, pulls this week's numbers from three source categories in parallel: payments (Stripe), ad platforms (Meta + Google Ads), and CRM (HubSpot deals + pipeline). Each branch aggregates its own raw API response into a few clean metrics.",
+        "height": 1228,
+        "width": 920,
+        "color": 6
+      },
+      "id": "c629929e-bbea-44f1-95ad-48701d132a09",
+      "name": "Note: ## 1. DATA AGGREGATI",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. TREND & FLAG LOGIC\nPulls the trailing 4 weeks of logged metrics and compares this week against that baseline. The headline check: ad spend spiking while conversions drop >15% vs. trailing average gets a highlighted warning flag. Every other metric also gets a week-over-week and vs-4wk-avg delta.",
+        "height": 524,
+        "width": 576,
+        "color": 5
+      },
+      "id": "7ac5f9a8-cec9-49a1-9dd0-691d10f8b3fe",
+      "name": "Note: ## 2. TREND & FLAG L",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        592,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. REPORT GENERATION\nBuilds a scannable Markdown executive summary, converts it to HTML, then renders that to a PDF.",
+        "height": 508,
+        "width": 700,
+        "color": 3
+      },
+      "id": "a77360e5-6c58-429e-91ab-2a0e4cfaa61a",
+      "name": "Note: ## 3. REPORT GENERAT",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1184,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4. DELIVERY\nThe PDF is stored in Drive and the Markdown digest — with a link to the full PDF — is posted straight to the leadership Slack channel. This week's numbers are also logged so next week's trailing average includes them.",
+        "height": 508,
+        "width": 924,
+        "color": 4
+      },
+      "id": "4600b271-1934-41e3-afc8-33ae9ee08cb6",
+      "name": "Note: ## 4. DELIVERY\nThe P",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1904,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ERROR HANDLING\nAny data-source failure (an ad account token expiring, a CRM API timeout) fires this trigger and pings ops — better than leadership getting a Monday digest with a silently-missing revenue number.",
+        "height": 356,
+        "width": 480,
+        "color": 2
+      },
+      "id": "bc93ae9b-0d3b-48e0-be09-e3a4a93d4fd8",
+      "name": "Note: ## ERROR HANDLING\nAn",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        736,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "id": "8f79aba9-f059-4483-bc46-df7be91d157a",
+      "name": "Trigger: Monday 6AM Weekly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -288,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.stripe.com/v1/charges",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "created[gte]",
+              "value": "={{ Math.floor($now.minus({days: 7}).toSeconds()) }}"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "40df9752-797b-4079-b672-79857c64ac69",
+      "name": "HTTP Request: Stripe - This Week's Charges",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const charges = $input.item.json.data || [];\nconst successful = charges.filter(c => c.paid && !c.refunded);\n\nconst revenue = successful.reduce((sum, c) => sum + c.amount, 0) / 100;\nconst refunds = charges.reduce((sum, c) => sum + (c.amount_refunded || 0), 0) / 100;\nconst recurringRevenue = successful\n  .filter(c => c.invoice)\n  .reduce((sum, c) => sum + c.amount, 0) / 100;\n\nreturn [{ json: { revenue, refunds, recurring_revenue: recurringRevenue } }];"
+      },
+      "id": "9a53f104-7617-4abc-b33a-7c1dff7c3bb0",
+      "name": "Code: Aggregate Stripe Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/act_YOUR_AD_ACCOUNT_ID/insights",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date_preset",
+              "value": "last_7d"
+            },
+            {
+              "name": "fields",
+              "value": "spend,actions"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5b73eb3a-553b-4818-af01-0c1598079418",
+      "name": "HTTP Request: Meta Ads - Weekly Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://googleads.googleapis.com/v17/customers/YOUR_CUSTOMER_ID/googleAds:searchStream",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"SELECT metrics.cost_micros, metrics.conversions FROM customer WHERE segments.date DURING LAST_7_DAYS\" }) }}",
+        "options": {}
+      },
+      "id": "40210aa6-ae32-472e-b80b-a83ed689a055",
+      "name": "HTTP Request: Google Ads - Weekly Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const metaData = $('HTTP Request: Meta Ads - Weekly Insights').item.json.data || [];\nconst metaSpend = metaData.reduce((sum, r) => sum + parseFloat(r.spend || 0), 0);\nconst metaConversions = metaData.reduce((sum, r) => {\n  const purchaseAction = (r.actions || []).find(a => a.action_type === 'purchase');\n  return sum + (purchaseAction ? parseInt(purchaseAction.value, 10) : 0);\n}, 0);\n\nconst googleResults = $('HTTP Request: Google Ads - Weekly Insights').item.json.results || [];\nconst googleSpend = googleResults.reduce((sum, r) => sum + ((r.metrics && r.metrics.costMicros) || 0), 0) / 1000000;\nconst googleConversions = googleResults.reduce((sum, r) => sum + ((r.metrics && r.metrics.conversions) || 0), 0);\n\nconst adSpend = metaSpend + googleSpend;\nconst conversions = metaConversions + googleConversions;\nconst cac = conversions > 0 ? adSpend / conversions : null;\n\nreturn [{ json: { ad_spend: adSpend, conversions, cac } }];"
+      },
+      "id": "ac562da3-a23e-4357-9051-947dc64099a7",
+      "name": "Code: Aggregate Ad Spend & Conversions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/deals/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [ { propertyName: 'dealstage', operator: 'EQ', value: 'closedwon' }, { propertyName: 'closedate', operator: 'GTE', value: $now.minus({days: 7}).toMillis() } ] }] , properties: ['dealname','amount','closedate'] }) }}",
+        "options": {}
+      },
+      "id": "0e2df490-58c4-4ec3-b198-ed4a0c48f309",
+      "name": "HTTP Request: HubSpot - Deals Won This Week",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/deals/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [ { propertyName: 'dealstage', operator: 'NEQ', value: 'closedwon' }, { propertyName: 'dealstage', operator: 'NEQ', value: 'closedlost' } ] }], properties: ['dealname','amount'] }) }}",
+        "options": {}
+      },
+      "id": "09033b54-8fd6-445e-af61-50361552fef6",
+      "name": "HTTP Request: HubSpot - Open Pipeline Value",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const wonDeals = $('HTTP Request: HubSpot - Deals Won This Week').item.json.results || [];\nconst pipelineDeals = $('HTTP Request: HubSpot - Open Pipeline Value').item.json.results || [];\n\nconst dealsWonCount = wonDeals.length;\nconst dealsWonValue = wonDeals.reduce((sum, d) => sum + (parseFloat(d.properties.amount) || 0), 0);\nconst pipelineValue = pipelineDeals.reduce((sum, d) => sum + (parseFloat(d.properties.amount) || 0), 0);\nconst pipelineCount = pipelineDeals.length;\n\nreturn [{ json: { deals_won_count: dealsWonCount, deals_won_value: dealsWonValue, pipeline_value: pipelineValue, pipeline_count: pipelineCount } }];"
+      },
+      "id": "d001d90c-8e47-4447-8d46-ceaf34a47e5a",
+      "name": "Code: Aggregate CRM Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "17496480-fb59-4570-8d33-24610bdad784",
+      "name": "Merge All Data Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        400,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const stripe = $('Code: Aggregate Stripe Metrics').item.json;\nconst ads = $('Code: Aggregate Ad Spend & Conversions').item.json;\nconst crm = $('Code: Aggregate CRM Metrics').item.json;\n\nreturn [{\n  json: {\n    week_ending: $now.toFormat('yyyy-MM-dd'),\n    ...stripe,\n    ...ads,\n    ...crm\n  }\n}];"
+      },
+      "id": "cf5ab112-3987-4279-a41e-4c04339ff4a3",
+      "name": "Code: Combine This Week's Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list",
+          "cachedResultName": "Example Workspace",
+          "cachedResultUrl": "https://example.com/placeholder"
+        },
+        "table": {
+          "mode": "list",
+          "value": "Weekly Metrics History"
+        },
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "Week Ending",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "id": "cb0f5246-6849-4589-a49b-4bde97284ba6",
+      "name": "Airtable: Get Trailing 4-Week History",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        816,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const current = $('Code: Combine This Week\\'s Metrics').item.json;\nconst history = $input.all().map(i => i.json);\n\nconst metricKeys = ['revenue', 'refunds', 'recurring_revenue', 'ad_spend', 'conversions', 'cac', 'deals_won_value', 'pipeline_value'];\n\nfunction trailingAvg(key) {\n  const values = history.map(h => Number(h[key]) || 0).filter(v => !isNaN(v));\n  if (!values.length) return null;\n  return values.reduce((a, b) => a + b, 0) / values.length;\n}\n\nconst trends = {};\nfor (const key of metricKeys) {\n  const avg = trailingAvg(key);\n  const curVal = Number(current[key]) || 0;\n  const pctVsAvg = avg && avg !== 0 ? ((curVal - avg) / avg) * 100 : null;\n  trends[key] = { current: curVal, trailing_avg: avg, pct_vs_avg: pctVsAvg };\n}\n\nconst flags = [];\nconst adSpendTrend = trends['ad_spend'];\nconst conversionsTrend = trends['conversions'];\nif (adSpendTrend.pct_vs_avg !== null && conversionsTrend.pct_vs_avg !== null) {\n  if (adSpendTrend.pct_vs_avg > 0 && conversionsTrend.pct_vs_avg <= -15) {\n    flags.push(`\\u26a0\\ufe0f Ad spend is up ${adSpendTrend.pct_vs_avg.toFixed(1)}% vs. the 4-week average while conversions dropped ${Math.abs(conversionsTrend.pct_vs_avg).toFixed(1)}% \\u2014 investigate campaign ROI before spending more.`);\n  }\n}\nif (trends['refunds'].pct_vs_avg !== null && trends['refunds'].pct_vs_avg > 25) {\n  flags.push(`\\u26a0\\ufe0f Refunds are up ${trends['refunds'].pct_vs_avg.toFixed(1)}% vs. the 4-week average.`);\n}\n\nreturn [{ json: { ...current, trends, flags } }];"
+      },
+      "id": "e34b9abd-5891-4f0a-b229-c860159993f0",
+      "name": "Code: Compute Trends & Flags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list",
+          "cachedResultName": "Example Workspace",
+          "cachedResultUrl": "https://example.com/placeholder"
+        },
+        "table": {
+          "mode": "list",
+          "value": "Weekly Metrics History"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Week Ending": "={{ $json.week_ending }}",
+            "Revenue": "={{ $json.revenue }}",
+            "Refunds": "={{ $json.refunds }}",
+            "Recurring Revenue": "={{ $json.recurring_revenue }}",
+            "Ad Spend": "={{ $json.ad_spend }}",
+            "Conversions": "={{ $json.conversions }}",
+            "CAC": "={{ $json.cac }}",
+            "Deals Won Value": "={{ $json.deals_won_value }}",
+            "Pipeline Value": "={{ $json.pipeline_value }}",
+            "Flags": "={{ $json.flags.join('; ') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "3c4a2775-477f-4a96-a4ee-88d4689212d4",
+      "name": "Airtable: Log This Week's Snapshot",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $input.item.json;\n\nfunction fmtMoney(v) { return '$' + (Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }\nfunction fmtDelta(pct) {\n  if (pct === null || pct === undefined) return 'n/a';\n  const arrow = pct > 0 ? '\\u2b06\\ufe0f' : (pct < 0 ? '\\u2b07\\ufe0f' : '\\u27a1\\ufe0f');\n  return `${arrow} ${pct.toFixed(1)}% vs 4wk avg`;\n}\n\nconst rows = [\n  ['Revenue', fmtMoney(t.trends.revenue.current), fmtDelta(t.trends.revenue.pct_vs_avg)],\n  ['Recurring Revenue', fmtMoney(t.trends.recurring_revenue.current), fmtDelta(t.trends.recurring_revenue.pct_vs_avg)],\n  ['Refunds', fmtMoney(t.trends.refunds.current), fmtDelta(t.trends.refunds.pct_vs_avg)],\n  ['Ad Spend', fmtMoney(t.trends.ad_spend.current), fmtDelta(t.trends.ad_spend.pct_vs_avg)],\n  ['Conversions', t.trends.conversions.current, fmtDelta(t.trends.conversions.pct_vs_avg)],\n  ['CAC', fmtMoney(t.trends.cac.current), fmtDelta(t.trends.cac.pct_vs_avg)],\n  ['Deals Won', fmtMoney(t.trends.deals_won_value.current), fmtDelta(t.trends.deals_won_value.pct_vs_avg)],\n  ['Pipeline Value', fmtMoney(t.trends.pipeline_value.current), fmtDelta(t.trends.pipeline_value.pct_vs_avg)]\n];\n\nconst tableRows = rows.map(r => `| ${r[0]} | ${r[1]} | ${r[2]} |`).join('\\n');\nconst flagsSection = t.flags && t.flags.length\n  ? `\\n\\n### Flags\\n\\n${t.flags.map(f => `- ${f}`).join('\\n')}`\n  : '\\n\\n### Flags\\n\\nNo warning flags this week \\u2705';\n\nconst markdown = `# Weekly Business Health Digest \\u2014 Week Ending ${t.week_ending}\\n\\n`\n  + `| Metric | This Week | Trend |\\n|---|---|---|\\n${tableRows}`\n  + flagsSection;\n\nreturn [{ json: { ...t, markdown_report: markdown } }];"
+      },
+      "id": "d9ebc1f5-7431-4dd8-8d8f-745d6edd2c59",
+      "name": "Code: Generate Markdown Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "markdownToHtml",
+        "markdown": "={{ $json.markdown_report }}",
+        "options": {}
+      },
+      "id": "68b7238f-5a24-413b-b26f-32c35bbfc33c",
+      "name": "Markdown: Convert Report to HTML",
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        1728,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pdfshift.io/v3/convert/pdf",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: $json.data, landscape: false, use_print: false }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "44d3d327-378c-4770-bf77-33f611ba98be",
+      "name": "HTTP Request: Generate PDF from HTML",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1952,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ 'Executive Digest - ' + $('Code: Generate Markdown Report').item.json.week_ending + '.pdf' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "mode": "list",
+          "value": "EXECUTIVE_REPORTS_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "id": "399f060f-2167-4731-99e8-cb35d48883bc",
+      "name": "Google Drive: Upload PDF Report",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2176,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "mode": "name",
+          "value": "#leadership-digest"
+        },
+        "text": "={{ $('Code: Generate Markdown Report').item.json.markdown_report + '\\n\\n📄 Full PDF: ' + $json.webViewLink }}",
+        "otherOptions": {}
+      },
+      "id": "f322f2e3-2f8b-4cae-84d7-c50833fe890b",
+      "name": "Slack: Send Executive Digest",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        368
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "1901a64d-5467-43ad-89e5-fc54f721e75c",
+      "name": "Digest Sent",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2624,
+        368
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "e2831652-3dd8-4e3d-8b8e-046b7ecc6b03",
+      "name": "On Workflow Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        784,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "mode": "name",
+          "value": "#ops-alerts"
+        },
+        "text": "=🚨 Executive Digest workflow failed.\nNode: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}",
+        "otherOptions": {}
+      },
+      "id": "1f756398-b75e-4c15-bb9c-b23c8b2456dd",
+      "name": "Slack: Alert Ops Channel",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        1008
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger: Monday 6AM Weekly": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request: Stripe - This Week's Charges",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request: Meta Ads - Weekly Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request: Google Ads - Weekly Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request: HubSpot - Deals Won This Week",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request: HubSpot - Open Pipeline Value",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request: Stripe - This Week's Charges": {
+      "main": [
+        [
+          {
+            "node": "Code: Aggregate Stripe Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request: Meta Ads - Weekly Insights": {
+      "main": [
+        [
+          {
+            "node": "Code: Aggregate Ad Spend & Conversions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request: Google Ads - Weekly Insights": {
+      "main": [
+        [
+          {
+            "node": "Code: Aggregate Ad Spend & Conversions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request: HubSpot - Deals Won This Week": {
+      "main": [
+        [
+          {
+            "node": "Code: Aggregate CRM Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request: HubSpot - Open Pipeline Value": {
+      "main": [
+        [
+          {
+            "node": "Code: Aggregate CRM Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Aggregate Stripe Metrics": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Aggregate Ad Spend & Conversions": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code: Aggregate CRM Metrics": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge All Data Sources": {
+      "main": [
+        [
+          {
+            "node": "Code: Combine This Week's Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Combine This Week's Metrics": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Get Trailing 4-Week History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Get Trailing 4-Week History": {
+      "main": [
+        [
+          {
+            "node": "Code: Compute Trends & Flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Compute Trends & Flags": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Log This Week's Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Log This Week's Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Code: Generate Markdown Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Generate Markdown Report": {
+      "main": [
+        [
+          {
+            "node": "Markdown: Convert Report to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown: Convert Report to HTML": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request: Generate PDF from HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request: Generate PDF from HTML": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Upload PDF Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: Upload PDF Report": {
+      "main": [
+        [
+          {
+            "node": "Slack: Send Executive Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Send Executive Digest": {
+      "main": [
+        [
+          {
+            "node": "Digest Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On Workflow Error": {
+      "main": [
+        [
+          {
+            "node": "Slack: Alert Ops Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "424d724d-e36c-413b-9e18-df3972661168",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "08a0676d4b0e271dfa212b6f24b87f277ddcb0348daa828cdb80e80908e94eb1"
+  },
+  "nodeGroups": [],
+  "id": "zPNgCNOgwGlv3HA3",
+  "tags": []
+}
