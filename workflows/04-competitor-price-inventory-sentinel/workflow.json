@@ -1,0 +1,903 @@
+{
+  "name": "Multi-Format Accounts Payable & Invoice Extraction Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 1. INGESTION\nWatches two sources at once: a Gmail inbox for vendor bill emails (with attachments) and a Google Drive 'Inbound Invoices' folder for uploaded receipts. Both are downloaded as binary and merged into one stream.",
+        "height": 560,
+        "width": 560,
+        "color": 6
+      },
+      "id": "5268aa4c-363c-4dc8-98e2-9ef988b876cf",
+      "name": "Note: ## 1. INGESTION\nWatc",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1936,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. FILE TYPE GATE\nOnly PDFs and images (jpg/png/heic scans) proceed. Anything else is logged and skipped rather than sent to the vision model.",
+        "height": 320,
+        "width": 380,
+        "color": 3
+      },
+      "id": "39df9e47-f4f5-4ff2-b396-2f52501fcfbb",
+      "name": "Note: ## 2. FILE TYPE GATE",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1296,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. AI VISION EXTRACTION\nRouted by file type to native Anthropic nodes: the 'document' resource handles PDFs, the 'image' resource handles jpg/png/heic scans. Both use a strict JSON-only extraction schema: vendor, invoice #, dates, tax ID, line items, subtotal, tax, grand total. Results are merged back into a single stream before validation.",
+        "height": 704,
+        "width": 432,
+        "color": 5
+      },
+      "id": "dd1d22aa-47e4-4313-a6a7-4f1bf191a7b1",
+      "name": "Note: ## 3. AI VISION EXTR",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4. VALIDATION LOGIC\nA Code node recalculates the line-item sum and compares it to the parsed grand total (with a small rounding tolerance), and checks that required fields like Tax ID aren't missing. This is the fork: clean data flows straight through, anything questionable goes to a human.",
+        "height": 400,
+        "width": 580,
+        "color": 2
+      },
+      "id": "7fde0e8e-1eb1-4cc8-a777-06ec9b45c12b",
+      "name": "Note: ## 4. VALIDATION LOG",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5A. CLEAN PATH\nFile is renamed to Vendor_InvoiceNumber_Date.pdf and moved to /Processed. Header row + one row per line item are appended to the accounting sheet. A low-noise Slack ping confirms it.",
+        "height": 500,
+        "width": 904,
+        "color": 4
+      },
+      "id": "d2792957-19fe-437e-84e6-a89acfc5347f",
+      "name": "Note: ## 5A. CLEAN PATH\nFi",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        256,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5B. EXCEPTION PATH\nFile is moved to /Needs-Review, an exception record is logged with the specific reason (amount mismatch vs. missing field), and the AP team is alerted in Slack with a direct link to the file.",
+        "height": 340,
+        "width": 760,
+        "color": 7
+      },
+      "id": "35089b9e-a6e2-40fe-ba2b-80d7ce9a86f4",
+      "name": "Note: ## 5B. EXCEPTION PAT",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ERROR HANDLING\nAny node failure (e.g. vision API timeout) fires this Error Trigger, alerting ops immediately instead of an invoice silently vanishing.",
+        "height": 308,
+        "width": 480,
+        "color": 2
+      },
+      "id": "b57ed3ef-319c-46b0-8fe6-b2b56c5809d3",
+      "name": "Note: ## ERROR HANDLING\nAn",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1936,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "mode": "id",
+          "value": "={{ $json.id }}",
+          "__rl": true
+        },
+        "options": {}
+      },
+      "id": "92db7f08-5939-462e-8f0c-33b37596ba7f",
+      "name": "Google Drive: Download New File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -1680,
+        480
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "acc6684c-9b94-421e-8c82-be73816ae869",
+      "name": "Merge Ingestion Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -1504,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "b96b4268-46e2-40da-9d7a-f085e5c7e865",
+              "leftValue": "={{ $binary.data.mimeType }}",
+              "rightValue": "^(application/pdf|image/(png|jpe?g|heic))$",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "98a1a72a-f007-43dc-ae04-b442888965ae",
+      "name": "IF: Supported File Type?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1248,
+        368
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "26e50b19-68e4-437c-b538-e5930a49a70d",
+      "name": "Log & Skip Unsupported File",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1136,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.item.json.content[0].text;\nconst cleaned = raw.replace(/```json|```/g, '').trim();\nlet data;\ntry {\n  data = JSON.parse(cleaned);\n} catch (e) {\n  return [{ json: { validation_passed: false, validation_reason: 'AI response was not valid JSON', raw_response: raw } }];\n}\n\nconst lineItems = data.line_items || [];\nconst computedSum = lineItems.reduce((sum, li) => sum + (Number(li.amount) || 0), 0);\nconst grandTotal = Number(data.grand_total) || 0;\nconst tolerance = 0.01;\nconst amountsMatch = Math.abs(computedSum - grandTotal) <= tolerance;\nconst hasTaxId = data.tax_id !== null && data.tax_id !== undefined && String(data.tax_id).trim() !== '';\n\nlet reason = '';\nif (!amountsMatch) reason = `Line items sum to ${computedSum.toFixed(2)} but grand total is ${grandTotal.toFixed(2)}`;\nelse if (!hasTaxId) reason = 'Tax ID missing from document';\n\nreturn [{\n  json: {\n    ...data,\n    computed_line_item_sum: computedSum,\n    validation_passed: amountsMatch && hasTaxId,\n    validation_reason: reason\n  }\n}];"
+      },
+      "id": "493541bf-596d-4cb7-9c9e-767c1a40b4a7",
+      "name": "Code: Parse & Validate Totals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "bef9ecc3-6a79-4b64-b219-5151d5f8f076",
+              "leftValue": "={{ $json.validation_passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c9e18c1d-19d4-4226-93a4-a25c07fcebe6",
+      "name": "IF: Validation Passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -160,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "fileId": {
+          "mode": "id",
+          "value": "={{ $('Merge Ingestion Sources').item.json.id }}",
+          "__rl": true
+        },
+        "options": {}
+      },
+      "id": "f0f6be48-3bc7-4f26-ab9b-b1e1172cbe0d",
+      "name": "Google Drive: Rename & Move to Processed",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        304,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "list",
+          "value": "AP_LEDGER_SHEET_ID",
+          "__rl": true
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Invoices"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Vendor": "={{ $json.vendor_name }}",
+            "Invoice Number": "={{ $json.invoice_number }}",
+            "Invoice Date": "={{ $json.invoice_date }}",
+            "Due Date": "={{ $json.due_date }}",
+            "Tax ID": "={{ $json.tax_id }}",
+            "Subtotal": "={{ $json.subtotal }}",
+            "Tax Amount": "={{ $json.tax_amount }}",
+            "Grand Total": "={{ $json.grand_total }}",
+            "Currency": "={{ $json.currency }}",
+            "File Link": "={{ $('Google Drive: Rename & Move to Processed').item.json.webViewLink }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "58cff12a-56aa-49d9-847f-4c8724cc6ce8",
+      "name": "Google Sheets: Append Invoice Header",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        560,
+        -112
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "line_items",
+        "options": {}
+      },
+      "id": "88acbafc-da68-4381-bfc5-1607263626bf",
+      "name": "Split Out: Line Items",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        480,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "list",
+          "value": "AP_LEDGER_SHEET_ID",
+          "__rl": true
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Line Items",
+          "__rl": true
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Invoice Number": "={{ $('Code: Parse & Validate Totals').item.json.invoice_number }}",
+            "Description": "={{ $json.description }}",
+            "Quantity": "={{ $json.quantity }}",
+            "Unit Price": "={{ $json.unit_price }}",
+            "Amount": "={{ $json.amount }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "140a0b09-b038-4271-8ff8-3f3e72237e6d",
+      "name": "Google Sheets: Append Line Item Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        128
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "ec77e53c-1054-475d-9795-80e5b4932823",
+      "name": "Merge Clean Path",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        800,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BRC0Y7YC8",
+          "mode": "list",
+          "cachedResultName": "Example Workspace"
+        },
+        "text": "=✅ Processed *{{ $('Code: Parse & Validate Totals').item.json.vendor_name }}* invoice #{{ $('Code: Parse & Validate Totals').item.json.invoice_number }} — {{ $('Code: Parse & Validate Totals').item.json.currency }} {{ $('Code: Parse & Validate Totals').item.json.grand_total }}. Logged to ledger.",
+        "otherOptions": {}
+      },
+      "id": "d33eec23-01be-4512-98b1-54ae6990e927",
+      "name": "Slack: Notify Invoice Processed",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "fileId": {
+          "mode": "id",
+          "value": "={{ $('Merge Ingestion Sources').item.json.id }}",
+          "__rl": true
+        },
+        "options": {}
+      },
+      "id": "925bd8a0-b16c-485a-8a36-151d87756bde",
+      "name": "Google Drive: Move to Needs-Review",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        48,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "list",
+          "value": "AP_LEDGER_SHEET_ID",
+          "__rl": true
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Exceptions",
+          "__rl": true
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Vendor (parsed)": "={{ $json.vendor_name }}",
+            "Invoice Number (parsed)": "={{ $json.invoice_number }}",
+            "Reason": "={{ $json.validation_reason }}",
+            "Computed Line Sum": "={{ $json.computed_line_item_sum }}",
+            "Parsed Grand Total": "={{ $json.grand_total }}",
+            "File Link": "={{ $('Google Drive: Move to Needs-Review').item.json.webViewLink }}",
+            "Status": "Needs Review"
+          }
+        },
+        "options": {}
+      },
+      "id": "644624e8-eed1-430f-8bd0-7b495788d2da",
+      "name": "Google Sheets: Log Exception",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        304,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BRC0Y7YC8",
+          "mode": "list",
+          "cachedResultName": "Example Workspace"
+        },
+        "text": "=🔎 Needs review: *{{ $json.vendor_name }}* invoice #{{ $json.invoice_number }} — {{ $json.validation_reason }}. File: {{ $('Google Drive: Move to Needs-Review').item.json.webViewLink }}",
+        "otherOptions": {}
+      },
+      "id": "3d9cd40e-9bc6-4ce0-b2fb-c5e21bdea5ba",
+      "name": "Slack: Alert AP Exceptions Channel",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        624,
+        544
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "1e1a3e86-6e3e-4a9e-bf16-5244a7b80a38",
+      "name": "On Workflow Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1872,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BRC0Y7YC8",
+          "mode": "list",
+          "cachedResultName": "Example Workspace"
+        },
+        "text": "=🚨 AP Invoice Extraction workflow failed.\nNode: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}",
+        "otherOptions": {}
+      },
+      "id": "bc1e80b9-020a-41c4-944f-025dd08f6a91",
+      "name": "Slack: Alert Ops Channel",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        -1632,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const binaryData = $input.item.binary || {};\nconst keys = Object.keys(binaryData);\nlet sourceKey = keys.find(function (k) { return k.indexOf('attachment_') === 0; });\nif (!sourceKey) { sourceKey = keys[0]; }\nconst result = { json: $input.item.json, binary: {} };\nif (sourceKey) { result.binary.data = binaryData[sourceKey]; }\nreturn result;"
+      },
+      "id": "5a5a2f1d-45ce-49b9-9dae-cb2ca5067b3e",
+      "name": "Normalize Gmail Attachment Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1680,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "media-type-check",
+              "leftValue": "={{ $binary.data.mimeType }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "4506a13a-45d2-4295-926b-e9237225a108",
+      "name": "IF: Route by Media Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1072,
+        368
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "67be040f-81fe-454c-b479-b4e31e844799",
+      "name": "Merge AI Extraction Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -560,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "has:attachment (invoice OR bill OR receipt)"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "37c20ac9-3817-4210-b6d0-6144bdfa6b5b",
+      "name": "Receive Invoice Email",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1872,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_DRIVE_FOLDER_ID",
+          "mode": "list",
+          "cachedResultName": "__mocks__",
+          "cachedResultUrl": "https://example.com/placeholder"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "2155840a-9e01-4913-a685-733a76e48c60",
+      "name": "Detect Invoice File",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1872,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -768,
+        240
+      ],
+      "id": "364a39a9-7a15-449c-a060-f0eb639d1ff7",
+      "name": "AI Extract Invoice Data"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -768,
+        464
+      ],
+      "id": "3911977e-be4c-4482-b880-29ed21c8c1fb",
+      "name": "AI Extract Image Invoice"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive: Download New File": {
+      "main": [
+        [
+          {
+            "node": "Merge Ingestion Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Ingestion Sources": {
+      "main": [
+        [
+          {
+            "node": "IF: Supported File Type?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Supported File Type?": {
+      "main": [
+        [
+          {
+            "node": "IF: Route by Media Type",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log & Skip Unsupported File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse & Validate Totals": {
+      "main": [
+        [
+          {
+            "node": "IF: Validation Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Validation Passed?": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Rename & Move to Processed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Drive: Move to Needs-Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: Rename & Move to Processed": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets: Append Invoice Header",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out: Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out: Line Items": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets: Append Line Item Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets: Append Invoice Header": {
+      "main": [
+        [
+          {
+            "node": "Merge Clean Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets: Append Line Item Rows": {
+      "main": [
+        [
+          {
+            "node": "Merge Clean Path",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Clean Path": {
+      "main": [
+        [
+          {
+            "node": "Slack: Notify Invoice Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: Move to Needs-Review": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets: Log Exception",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets: Log Exception": {
+      "main": [
+        [
+          {
+            "node": "Slack: Alert AP Exceptions Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On Workflow Error": {
+      "main": [
+        [
+          {
+            "node": "Slack: Alert Ops Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Gmail Attachment Binary": {
+      "main": [
+        [
+          {
+            "node": "Merge Ingestion Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Route by Media Type": {
+      "main": [
+        [
+          {
+            "node": "AI Extract Invoice Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Extract Image Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge AI Extraction Results": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse & Validate Totals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Invoice Email": {
+      "main": [
+        [
+          {
+            "node": "Normalize Gmail Attachment Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Invoice File": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Download New File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Extract Invoice Data": {
+      "main": [
+        [
+          {
+            "node": "Merge AI Extraction Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Extract Image Invoice": {
+      "main": [
+        [
+          {
+            "node": "Merge AI Extraction Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "ddb04662-a895-4eff-8dd6-be3c18318e26",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "08a0676d4b0e271dfa212b6f24b87f277ddcb0348daa828cdb80e80908e94eb1"
+  },
+  "nodeGroups": [],
+  "id": "0sPnVFDxjsq4GwDU",
+  "tags": []
+}
