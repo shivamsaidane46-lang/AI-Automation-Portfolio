@@ -1,0 +1,1000 @@
+{
+  "name": "Omnichannel Support Ticket Triage & Smart Escalation",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 1. OMNICHANNEL INTAKE\nA new support email (Gmail) or a chat-widget message (webhook) both normalize into the same ticket shape: channel, customer, message, received_at.",
+        "height": 480,
+        "width": 608,
+        "color": 6
+      },
+      "id": "6cc9467c-2834-4173-b3d3-e79ff486cc37",
+      "name": "Note: ## 1. OMNICHANNEL IN",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1856,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. KNOWLEDGE BASE MATCH\nThe message is embedded (native Embeddings OpenAI subnode) and searched against the company's policy/shipping/technical KB using the native Pinecone Vector Store node (Get Many mode). The top match's similarity score becomes the 'confidence' signal. Returns 0 matches safely if the index is empty, defaulting to low confidence (escalate).",
+        "height": 480,
+        "width": 460,
+        "color": 3
+      },
+      "id": "6d88d527-c4ab-4cda-b5f0-d1f67183b4b0",
+      "name": "Note: ## 2. KNOWLEDGE BASE",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1232,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. SENTIMENT & INTENT\nA native Anthropic node separately classifies sentiment, frustration level (0-10), and flags cancellation threats or billing disputes — this is the second signal, independent of whether the KB has a good answer.",
+        "height": 480,
+        "width": 460,
+        "color": 5
+      },
+      "id": "b2e5ccb0-9ce7-484b-9155-72e178c62f21",
+      "name": "Note: ## 3. SENTIMENT & IN",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4. THE DECISION\nHigh KB confidence + neutral/positive sentiment + no threat flags → auto-resolve. Anything else → escalate, tagged urgent or normal based on frustration/threat signals. This is the core IP of the workflow.",
+        "height": 480,
+        "width": 420,
+        "color": 2
+      },
+      "id": "88d480d5-8f4a-4b77-a8f7-3ed1c28aa017",
+      "name": "Note: ## 4. THE DECISION\nH",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5A. AUTO-RESOLUTION\nDrafts a KB-grounded reply and sends it back on whatever channel the ticket came in on, then logs it as resolved.",
+        "height": 484,
+        "width": 1400,
+        "color": 4
+      },
+      "id": "aa514639-2c70-4012-be48-af13f4776734",
+      "name": "Note: ## 5A. AUTO-RESOLUTI",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        320,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5B. SMART ESCALATION\nBuilds an enriched summary for the human agent (message, sentiment, why it was escalated, relevant KB snippets) and routes to an urgent or normal-priority channel so senior reps see VIP/angry customers first.",
+        "height": 464,
+        "width": 1192,
+        "color": 7
+      },
+      "id": "5adfebbe-a3c5-477b-9a6e-4aa1585142db",
+      "name": "Note: ## 5B. SMART ESCALAT",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        336,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ERROR HANDLING\nAny failure (KB search timeout, LLM error) fires this trigger and alerts ops instead of a customer getting silence.",
+        "height": 308,
+        "width": 480,
+        "color": 2
+      },
+      "id": "72d64053-6b62-4564-b47d-6fae1b98aca9",
+      "name": "Note: ## ERROR HANDLING\nAn",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1888,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "to:user@example.com"
+        },
+        "options": {}
+      },
+      "id": "3e04a205-9209-4e52-8b69-b3ae48f1e13b",
+      "name": "Trigger: New Support Email (Gmail)",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1808,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "support-chat-message",
+        "options": {}
+      },
+      "id": "55ca9f57-2224-4112-b519-a77c69355315",
+      "name": "Trigger: New Chat Message (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1808,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f522545b-3f0f-46e4-9811-26e0e025c006",
+              "name": "channel",
+              "value": "email",
+              "type": "string"
+            },
+            {
+              "id": "b70e13d4-7a36-4fe9-94cc-b152254174f1",
+              "name": "ticket_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "ab98b05b-f53a-4cb5-847c-aae0be3b0470",
+              "name": "customer_name",
+              "value": "={{ $json.from.name }}",
+              "type": "string"
+            },
+            {
+              "id": "ac0720c5-bb2a-4c44-afeb-bb03f0ac55b8",
+              "name": "customer_email",
+              "value": "={{ $json.from.value[0].address }}",
+              "type": "string"
+            },
+            {
+              "id": "87cfeb25-0139-41f6-b084-102d64d943a7",
+              "name": "message_text",
+              "value": "={{ $json.snippet || $json.textPlain }}",
+              "type": "string"
+            },
+            {
+              "id": "1b7a3e5c-ca2f-475c-9160-8d02a977b9eb",
+              "name": "received_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "56ef6976-65dc-48db-bcdf-9ea4155290aa",
+      "name": "Normalize: Email Ticket",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1584,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "96ad251f-3c16-4af5-b1ee-2170b1ce6cf8",
+              "name": "channel",
+              "value": "chat",
+              "type": "string"
+            },
+            {
+              "id": "b13b0cc4-71c1-4551-b97e-96762dd9b165",
+              "name": "ticket_id",
+              "value": "={{ $json.body.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "cdca35fc-03d6-4d06-aa50-9164881a30d1",
+              "name": "customer_name",
+              "value": "={{ $json.body.customer.name }}",
+              "type": "string"
+            },
+            {
+              "id": "286ddb86-8e36-411c-8b67-c1d243be270d",
+              "name": "customer_email",
+              "value": "={{ $json.body.customer.email }}",
+              "type": "string"
+            },
+            {
+              "id": "2c5f9209-efe9-48f8-a74f-a12b61acb781",
+              "name": "message_text",
+              "value": "={{ $json.body.message }}",
+              "type": "string"
+            },
+            {
+              "id": "4f102df3-5ace-4983-973e-5d984724d7ba",
+              "name": "received_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a2da659-fccd-4672-a085-e01afec9bb47",
+      "name": "Normalize: Chat Ticket",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1584,
+        304
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "ce7c76e3-289e-4f07-a5bf-e128bd0401f3",
+      "name": "Merge Ticket Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -1360,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticket = $('Merge Ticket Sources').first().json;\nconst items = $input.all();\n\nconst matches = items\n  .filter(item => item.json && (item.json.pageContent || item.json.text))\n  .map(item => {\n    const j = item.json;\n    const text = j.pageContent || j.text || '';\n    const score = j.score !== undefined ? j.score : ((j.metadata && j.metadata.score !== undefined) ? j.metadata.score : 0);\n    return { score, text };\n  })\n  .sort((a, b) => b.score - a.score);\n\nconst topScore = matches.length ? matches[0].score : 0;\nconst kbSnippets = matches.map(m => m.text).filter(Boolean);\n\nreturn [{\n  json: {\n    ...ticket,\n    kb_confidence: topScore,\n    kb_snippets: kbSnippets\n  }\n}];"
+      },
+      "id": "20853e72-e8b1-407f-84cf-d8c533771357",
+      "name": "Code: Extract Top Match & Confidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -688,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticket = $('Code: Extract Top Match & Confidence').item.json;\nconst raw = $input.item.json.content[0].text;\nconst cleaned = raw.replace(/```json|```/g, '').trim();\nlet sentiment;\ntry {\n  sentiment = JSON.parse(cleaned);\n} catch (e) {\n  sentiment = { sentiment: 'neutral', frustration_level: 0, contains_cancellation_threat: false, contains_billing_dispute: false, one_line_summary: 'Could not parse AI sentiment response' };\n}\n\nreturn [{ json: { ...ticket, ...sentiment } }];"
+      },
+      "id": "f5ea02f6-4232-41cb-b049-f6a87b359a35",
+      "name": "Code: Parse Sentiment Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $input.item.json;\n\nconst highConfidence = (t.kb_confidence || 0) >= 0.80;\nconst safeSentiment = t.sentiment !== 'negative';\nconst noThreatFlags = !t.contains_cancellation_threat && !t.contains_billing_dispute;\n\nconst autoResolve = highConfidence && safeSentiment && noThreatFlags;\n\nlet priority = 'normal';\nif (t.contains_cancellation_threat || t.contains_billing_dispute || (t.frustration_level || 0) >= 7) {\n  priority = 'urgent';\n}\n\nlet escalationReason = '';\nif (!autoResolve) {\n  const reasons = [];\n  if (!highConfidence) reasons.push(`low KB match confidence (${(t.kb_confidence || 0).toFixed(2)})`);\n  if (!safeSentiment) reasons.push('negative sentiment');\n  if (t.contains_cancellation_threat) reasons.push('cancellation threat detected');\n  if (t.contains_billing_dispute) reasons.push('billing dispute detected');\n  escalationReason = reasons.join('; ');\n}\n\nreturn [{\n  json: {\n    ...t,\n    decision: autoResolve ? 'auto_resolve' : 'escalate',\n    priority,\n    escalation_reason: escalationReason\n  }\n}];"
+      },
+      "id": "9c40b1ad-c4b7-41de-8f07-4da088f746e9",
+      "name": "Code: Decision Logic (Auto-Resolve vs Escalate)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "8026e6bb-781d-4af1-8f14-7c5ad501e98e",
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "auto_resolve",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "90052805-44e3-44ad-a417-3477165cc6ef",
+      "name": "IF: Auto-Resolve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        176,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $('Code: Decision Logic (Auto-Resolve vs Escalate)').item.json;\nconst replyText = $input.item.json.content[0].text;\nreturn [{ json: { ...t, reply_text: replyText } }];"
+      },
+      "id": "46761af5-fc5d-4653-b2d4-5b7cc9d0c087",
+      "name": "Code: Parse Draft Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "35d150e8-5f1c-4dfa-8c9f-852e3c501b91",
+              "leftValue": "={{ $json.channel }}",
+              "rightValue": "email",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "146fd304-e6ac-45c2-873d-55ffa31b2884",
+      "name": "IF: Channel is Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        944,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $json.ticket_id }}",
+        "message": "={{ $json.reply_text }}",
+        "options": {}
+      },
+      "id": "aeef8df8-c095-47bf-8ed0-21e9bc8c181c",
+      "name": "Gmail: Send Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1152,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://httpbin.org/post",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: $json.reply_text }) }}",
+        "options": {}
+      },
+      "id": "462b3ca4-6ce9-4647-b99c-0cab337bbc26",
+      "name": "HTTP Request: Post Reply to Chat Platform",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1168,
+        32
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "216aec4e-6b0d-4283-a10a-2590cdbf7a86",
+      "name": "Merge Reply Sent",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1360,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "mode": "list",
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "__rl": true
+        },
+        "table": {
+          "mode": "list",
+          "value": "Tickets",
+          "__rl": true
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Ticket ID": "={{ $json.ticket_id }}",
+            "Channel": "={{ $json.channel }}",
+            "Customer": "={{ $json.customer_name }}",
+            "Message": "={{ $json.message_text }}",
+            "Status": "Resolved - Automated",
+            "KB Confidence": "={{ $json.kb_confidence }}",
+            "Sentiment": "={{ $json.sentiment }}",
+            "Reply Sent": "={{ $json.reply_text }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "766cba7b-0a4a-4aa9-8dde-79e708072d35",
+      "name": "Airtable: Log Ticket (Auto-Resolved)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $input.item.json;\nconst summary = `Customer: ${t.customer_name} (${t.customer_email})\\n`\n  + `Channel: ${t.channel}\\n`\n  + `Sentiment: ${t.sentiment} | Frustration: ${t.frustration_level}/10\\n`\n  + `Cancellation threat: ${t.contains_cancellation_threat} | Billing dispute: ${t.contains_billing_dispute}\\n`\n  + `Escalation reason: ${t.escalation_reason}\\n`\n  + `Message: ${t.message_text}\\n`\n  + (t.kb_snippets && t.kb_snippets.length ? `Closest KB matches for reference:\\n- ${t.kb_snippets.join('\\n- ')}` : 'No close KB matches found.');\n\nreturn [{ json: { ...t, enriched_summary: summary } }];"
+      },
+      "id": "771fe788-cdf9-4d0b-8a59-3414abf14c3e",
+      "name": "Code: Build Enriched Escalation Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list",
+          "cachedResultName": "Example Workspace",
+          "cachedResultUrl": "https://example.com/placeholder"
+        },
+        "table": {
+          "mode": "list",
+          "value": "Tickets",
+          "__rl": true
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "aab8525b-f6fc-47bd-8650-0257acc24f06",
+      "name": "Airtable: Create Escalated Ticket",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        656,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "396ed26a-7caa-4f23-929a-67d9a355117f",
+              "leftValue": "={{ $json.priority }}",
+              "rightValue": "urgent",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2d8023e3-4a73-4e61-8eb9-c699beb9978f",
+      "name": "IF: Priority Urgent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "mode": "name",
+          "value": "#support-urgent",
+          "__rl": true
+        },
+        "text": "=🔴 *URGENT* — {{ $json.customer_name }} ({{ $json.channel }})\n{{ $json.enriched_summary }}",
+        "otherOptions": {}
+      },
+      "id": "367254a2-c340-4b49-9634-9af88a0d15e4",
+      "name": "Slack: Alert Urgent Escalation",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "mode": "name",
+          "value": "#support-queue",
+          "__rl": true
+        },
+        "text": "=🟡 Escalated — {{ $json.customer_name }} ({{ $json.channel }})\n{{ $json.enriched_summary }}",
+        "otherOptions": {}
+      },
+      "id": "9014b80e-540a-49c8-9ad2-1c962cc1631c",
+      "name": "Slack: Route to Support Queue",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        512
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "85be7838-0c13-4945-bcdd-737b9f10890e",
+      "name": "On Workflow Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1808,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BQKJ4LT7T",
+          "mode": "list",
+          "cachedResultName": "Example Workspace"
+        },
+        "text": "=🚨 Support Triage workflow failed.\nNode: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}",
+        "otherOptions": {}
+      },
+      "id": "6fffc13c-24ae-4b11-8685-9728d7400d0c",
+      "name": "Slack: Alert Ops Channel",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        -1584,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -432,
+        336
+      ],
+      "id": "03d3bace-d15f-4216-81e2-e02acc71c34c",
+      "name": "OpenRouter Chat Model"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        496,
+        32
+      ],
+      "id": "70cc5828-d840-4c3e-a4da-f68ff5855a4e",
+      "name": "OpenRouter Chat Model1"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "just",
+        "tableName": {
+          "__rl": true,
+          "value": "clients",
+          "mode": "list",
+          "cachedResultName": "clients"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        -1024,
+        208
+      ],
+      "id": "2cfaf14d-ff8d-4649-922a-ad4e5b9eb355",
+      "name": "Supabase Vector Search"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1104,
+        352
+      ],
+      "id": "9f2a665b-aefa-43c7-8bc2-f3bcdf585580",
+      "name": "Gemini Embeddings"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a customer support triage classifier. Analyze this customer message and respond with ONLY valid JSON (no markdown, no commentary), matching exactly this schema: {\"sentiment\": \"positive\"|\"neutral\"|\"negative\", \"frustration_level\": number (0-10), \"contains_cancellation_threat\": boolean, \"contains_billing_dispute\": boolean, \"one_line_summary\": string}.\n\nCustomer message:\n{{ $json.message_text }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -528,
+        208
+      ],
+      "id": "0d64cc1c-cdf4-4dc3-8923-f0837ce51801",
+      "name": "LLM: Sentiment & Intent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a customer support agent. Using ONLY the knowledge base context provided, write a friendly, concise reply to the customer's message. If the context doesn't fully answer it, say so honestly rather than inventing details. Do not include a greeting salutation placeholder like [Name] - address the customer naturally.\n\nKnowledge base context:\n{{ $json.kb_snippets.join(\"\\n---\\n\") }}\n\nCustomer message:\n{{ $json.message_text }}\n\nCustomer name: {{ $json.customer_name }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        432,
+        -176
+      ],
+      "id": "b273340d-9d53-4f9d-b6c2-06d66df7c51a",
+      "name": "LLM: Draft Reply"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger: New Support Email (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Normalize: Email Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger: New Chat Message (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Normalize: Chat Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize: Email Ticket": {
+      "main": [
+        [
+          {
+            "node": "Merge Ticket Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize: Chat Ticket": {
+      "main": [
+        [
+          {
+            "node": "Merge Ticket Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code: Parse Sentiment Response": {
+      "main": [
+        [
+          {
+            "node": "Code: Decision Logic (Auto-Resolve vs Escalate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Decision Logic (Auto-Resolve vs Escalate)": {
+      "main": [
+        [
+          {
+            "node": "IF: Auto-Resolve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Auto-Resolve?": {
+      "main": [
+        [
+          {
+            "node": "LLM: Draft Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code: Build Enriched Escalation Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse Draft Reply": {
+      "main": [
+        [
+          {
+            "node": "IF: Channel is Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Channel is Email?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request: Post Reply to Chat Platform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Send Reply": {
+      "main": [
+        [
+          {
+            "node": "Merge Reply Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request: Post Reply to Chat Platform": {
+      "main": [
+        [
+          {
+            "node": "Merge Reply Sent",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Reply Sent": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Log Ticket (Auto-Resolved)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Build Enriched Escalation Summary": {
+      "main": [
+        [
+          {
+            "node": "Airtable: Create Escalated Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable: Create Escalated Ticket": {
+      "main": [
+        [
+          {
+            "node": "IF: Priority Urgent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Priority Urgent?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Alert Urgent Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Route to Support Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On Workflow Error": {
+      "main": [
+        [
+          {
+            "node": "Slack: Alert Ops Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Ticket Sources": {
+      "main": [
+        []
+      ]
+    },
+    "Code: Extract Top Match & Confidence": {
+      "main": [
+        [
+          {
+            "node": "LLM: Sentiment & Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM: Sentiment & Intent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM: Draft Reply",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Search",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM: Sentiment & Intent": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Sentiment Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM: Draft Reply": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Draft Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "1c3c4877-9e2b-4102-99f9-01cbf5002a44",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "08a0676d4b0e271dfa212b6f24b87f277ddcb0348daa828cdb80e80908e94eb1"
+  },
+  "nodeGroups": [],
+  "id": "CBjId00u5cjn3Z6A",
+  "tags": []
+}
